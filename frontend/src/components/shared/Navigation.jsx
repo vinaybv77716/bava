@@ -44,12 +44,20 @@ export const Navigation = () => {
                 Settings
               </Link>
               {isAdmin() && (
-                <Link
-                  to="/admin"
-                  className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-                >
-                  Admin
-                </Link>
+                <>
+                  <Link
+                    to="/admin"
+                    className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
+                  >
+                    Admin
+                  </Link>
+                  <Link
+                    to="/admin/users"
+                    className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
+                  >
+                    Users
+                  </Link>
+                </>
               )}
             </div>
           </div>
