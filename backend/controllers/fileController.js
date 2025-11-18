@@ -293,56 +293,25 @@ const downloadOutputFile = async (req, res) => {
       });
     }
 
-    // Check if file is stored in GridFS
-    if (outputFile.storedInGridFS && outputFile.gridfsFileId) {
-      // Download from GridFS
-      const { downloadStream, fileName, contentType, fileSize } = await downloadFromGridFS(outputFile.gridfsFileId);
-
-      // Set headers including Content-Length
-      res.set({
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Content-Length': fileSize
+    // Download from GridFS (all files are stored in GridFS)
+    if (!outputFile.storedInGridFS || !outputFile.gridfsFileId) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found in GridFS storage'
       });
-
-      // Handle client disconnect
-      req.on('close', () => {
-        if (!res.writableEnded) {
-          console.log('Client disconnected, destroying stream');
-          downloadStream.destroy();
-        }
-      });
-
-      // Handle stream errors
-      downloadStream.on('error', (error) => {
-        console.error('GridFS stream error:', error);
-        if (!res.headersSent) {
-          res.status(500).json({
-            success: false,
-            message: 'Error streaming file',
-            error: error.message
-          });
-        } else {
-          // Headers already sent, just destroy the stream
-          downloadStream.destroy();
-        }
-      });
-
-      // Pipe the GridFS stream to response
-      downloadStream.pipe(res).on('error', (error) => {
-        console.error('Pipe error:', error);
-        downloadStream.destroy();
-      });
-    } else {
-      // Fallback to file system (for backward compatibility)
-      if (!outputFile.filePath) {
-        return res.status(404).json({
-          success: false,
-          message: 'File path not found'
-        });
-      }
-      res.download(outputFile.filePath, outputFile.fileName);
     }
+
+    // Download from GridFS
+    const { downloadStream, fileName, contentType } = await downloadFromGridFS(outputFile.gridfsFileId);
+
+    // Set headers
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${fileName}"`
+    });
+
+    // Pipe the GridFS stream to response
+    downloadStream.pipe(res);
 
   } catch (error) {
     console.error('Error downloading file:', error);
