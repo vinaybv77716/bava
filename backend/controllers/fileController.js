@@ -107,8 +107,17 @@ const processFileAsync = async (file) => {
 
     console.log(`Processing file ${file._id}: ${file.originalName}`);
 
-    // Execute converter
-    const result = await executeConverter(tempInputPath, outputDir);
+    // Emit processing started event via WebSocket
+    if (global.io) {
+      global.io.emit('processing:started', {
+        fileId: file._id.toString(),
+        fileName: file.originalName,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Execute converter with fileId for WebSocket tracking
+    const result = await executeConverter(tempInputPath, outputDir, file._id.toString());
 
     // Upload output files to GridFS
     console.log(`Uploading ${result.outputFiles.length} output files to GridFS...`);
@@ -143,6 +152,15 @@ const processFileAsync = async (file) => {
 
     console.log(`File ${file._id} processed successfully and uploaded to GridFS`);
 
+    // Emit processing completed event via WebSocket
+    if (global.io) {
+      global.io.emit('processing:completed', {
+        fileId: file._id.toString(),
+        fileName: file.originalName,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // Clean up all temporary files
     try {
       await cleanupDirectory(tempDir);
@@ -172,6 +190,16 @@ const processFileAsync = async (file) => {
         await file.updateStatus('failed', {
           errorMessage: error.message || error.error || 'Conversion failed'
         });
+
+        // Emit processing failed event via WebSocket
+        if (global.io) {
+          global.io.emit('processing:failed', {
+            fileId: file._id.toString(),
+            fileName: file.originalName,
+            error: error.message || error.error || 'Conversion failed',
+            timestamp: new Date().toISOString()
+          });
+        }
       } catch (updateError) {
         console.error('Failed to update file status:', updateError);
       }
