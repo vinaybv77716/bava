@@ -2,27 +2,29 @@ import { useState, useEffect } from 'react';
 import { useManuscripts } from '../hooks/useManuscripts';
 import { useDownload } from '../hooks/useDownload';
 import { useNotification } from '../contexts/NotificationContext';
+import { useRealtime } from '../hooks/useRealtime';
 import Navigation from '../components/shared/Navigation';
 import Loading from '../components/shared/Loading';
 import FileUpload from '../components/shared/FileUpload';
 import ConfirmationDialog from '../components/shared/ConfirmationDialog';
-import { 
-  CheckCircle, 
-  Clock, 
-  Upload, 
-  FileText, 
-  Download, 
-  Trash2, 
+import {
+  CheckCircle,
+  Clock,
+  Upload,
+  FileText,
+  Download,
+  Trash2,
   AlertCircle,
   File,
   ChevronRight,
-  ChevronDown 
+  ChevronDown
 } from 'lucide-react';
 
 export const Manuscripts = () => {
   const { manuscripts, loading, getManuscripts, uploadManuscript, deleteManuscript, getDownloadUrl, uploadProgress } = useManuscripts();
   const { downloadFile } = useDownload();
   const { showSuccess, showError, handleError } = useNotification();
+  const { subscribeToProcessingProgress, isConnected } = useRealtime();
 
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -31,21 +33,114 @@ export const Manuscripts = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [expandedFile, setExpandedFile] = useState(null); // Track which file is expanded
 
+  // Track real-time processing data for each file
+  const [processingData, setProcessingData] = useState({});
+
   useEffect(() => {
     loadManuscripts();
   }, []);
 
-  // Only poll when there are files being processed
+  // Only poll when there are files being processed (backup to WebSocket)
   useEffect(() => {
     const hasProcessingFiles = manuscripts.some(
       m => m.status === 'processing' || m.status === 'uploaded'
     );
 
-    if (hasProcessingFiles) {
+    if (hasProcessingFiles && !isConnected) {
+      // Only poll if WebSocket is not connected (fallback)
       const interval = setInterval(loadManuscripts, 5000);
       return () => clearInterval(interval);
     }
-  }, [manuscripts]);
+  }, [manuscripts, isConnected]);
+
+  // Subscribe to WebSocket events for processing files
+  useEffect(() => {
+    const unsubscribers = [];
+
+    manuscripts.forEach((manuscript) => {
+      if (manuscript.status === 'processing' || manuscript.status === 'uploaded') {
+        const unsubscribe = subscribeToProcessingProgress(manuscript.id, (event) => {
+          console.log('Processing event:', event);
+
+          setProcessingData((prev) => {
+            const currentData = prev[manuscript.id] || {};
+
+            switch (event.type) {
+              case 'started':
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    started: true,
+                    startedAt: event.timestamp
+                  }
+                };
+
+              case 'percentage':
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    percentage: event.percentage
+                  }
+                };
+
+              case 'validation':
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    validationMessage: event.message
+                  }
+                };
+
+              case 'progress':
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    progressMessage: event.message
+                  }
+                };
+
+              case 'completed':
+                // Reload manuscripts to get updated status
+                loadManuscripts();
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    completed: true
+                  }
+                };
+
+              case 'failed':
+                // Reload manuscripts to get updated status
+                loadManuscripts();
+                return {
+                  ...prev,
+                  [manuscript.id]: {
+                    ...currentData,
+                    failed: true,
+                    error: event.error
+                  }
+                };
+
+              default:
+                return prev;
+            }
+          });
+        });
+
+        unsubscribers.push(unsubscribe);
+      }
+    });
+
+    // Cleanup all subscriptions
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [manuscripts, subscribeToProcessingProgress]);
 
   const loadManuscripts = async () => {
     try {
@@ -236,6 +331,7 @@ export const Manuscripts = () => {
               const trackingSteps = getTrackingSteps(manuscript.status);
               const StatusIcon = statusInfo.icon;
               const isExpanded = expandedFile === manuscript.id;
+              const realtimeData = processingData[manuscript.id] || {};
 
               return (
                 <div
@@ -290,12 +386,14 @@ export const Manuscripts = () => {
 
                         {/* Status Badge */}
                         <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${statusInfo.bgColor} border ${statusInfo.borderColor} ${
-                          manuscript.status === 'processing' ? 'shadow-glow-blue animate-pulse-glow' : 
+                          manuscript.status === 'processing' ? 'shadow-glow-blue animate-pulse-glow' :
                           manuscript.status === 'completed' ? 'shadow-glow-green' : ''
                         }`}>
                           <StatusIcon size={18} className={statusInfo.color} />
                           <span className={`font-semibold text-sm ${statusInfo.color}`}>
-                            {statusInfo.label}
+                            {manuscript.status === 'processing' && realtimeData.percentage !== undefined
+                              ? `Processing ${realtimeData.percentage.toFixed(1)}%`
+                              : statusInfo.label}
                           </span>
                         </div>
                       </div>
@@ -364,6 +462,19 @@ export const Manuscripts = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Real-time Validation Message */}
+                      {realtimeData.validationMessage && (
+                        <div className="mb-6 p-4 bg-success-50 border border-success-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="text-success-600 flex-shrink-0 mt-0.5" size={18} />
+                            <div>
+                              <p className="font-semibold text-success-900 text-sm">Validation Status:</p>
+                              <p className="text-success-700 text-sm mt-1 font-mono">{realtimeData.validationMessage}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Error Message */}
                       {manuscript.status === 'failed' && manuscript.error_message && (

@@ -7,9 +7,10 @@ const fsSync = require('fs');
  * Execute RittDocConverter pipeline
  * @param {string} inputFilePath - Path to the input file (PDF or EPUB)
  * @param {string} outputDir - Directory for output files
+ * @param {string} fileId - MongoDB file ID for WebSocket tracking
  * @returns {Promise<Object>} - Result object with output files info
  */
-const executeConverter = async (inputFilePath, outputDir) => {
+const executeConverter = async (inputFilePath, outputDir, fileId = null) => {
   return new Promise((resolve, reject) => {
     // Validate input
     if (!inputFilePath || typeof inputFilePath !== 'string') {
@@ -40,9 +41,63 @@ const executeConverter = async (inputFilePath, outputDir) => {
       { shell: true }
     );
 
+    // Helper function to emit WebSocket events
+    const emitProgress = (data) => {
+      if (global.io && fileId) {
+        global.io.emit('processing:progress', {
+          fileId,
+          message: data,
+          timestamp: new Date().toISOString()
+        });
+      }
+    };
 
-    pyProcess.stdout.on('data', (data) => process.stdout.write(data.toString()));
-    pyProcess.stderr.on('data', (data) => process.stderr.write(data.toString()));
+    // Capture stdout and emit via WebSocket
+    pyProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+
+      // Keep existing console output
+      process.stdout.write(output);
+
+      // Emit to WebSocket
+      emitProgress(output);
+
+      // Extract and emit specific progress information
+      const percentMatch = output.match(/(\d+\.\d+)%/);
+      if (percentMatch && global.io && fileId) {
+        global.io.emit('processing:percentage', {
+          fileId,
+          percentage: parseFloat(percentMatch[1]),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // Check for validation messages
+      if (output.includes('DTD validation PASSED') && global.io && fileId) {
+        global.io.emit('processing:validation', {
+          fileId,
+          message: output.trim(),
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Capture stderr and emit via WebSocket
+    pyProcess.stderr.on('data', (data) => {
+      const output = data.toString();
+
+      // Keep existing console output
+      process.stderr.write(output);
+
+      // Emit errors/warnings to WebSocket
+      if (global.io && fileId) {
+        global.io.emit('processing:error', {
+          fileId,
+          message: output,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
 
     pyProcess.on('close', async (code) => {
       if (code !== 0) {
