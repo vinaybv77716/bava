@@ -308,17 +308,6 @@ export const Manuscripts = () => {
               const StatusIcon = statusInfo.icon;
               const isExpanded = expandedFile === manuscript.id;
 
-              // Debug log for rendering
-              if (manuscript.status === 'processing') {
-                console.log('🎨 Rendering manuscript:', {
-                  id: manuscript.id,
-                  status: manuscript.status,
-                  realtimeData,
-                  hasPercentage: realtimeData.percentage !== undefined,
-                  percentage: realtimeData.percentage
-                });
-              }
-
               return (
                 <div
                   key={manuscript.id}
