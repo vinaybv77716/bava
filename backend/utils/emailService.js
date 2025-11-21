@@ -38,7 +38,7 @@ const createTransporter = () => {
  * Generate HTML template for successful conversion
  */
 const getSuccessEmailTemplate = (fileName, outputFiles, fileId) => {
-  const downloadUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/manuscripts`;
+  const downloadUrl = `${process.env.FRONTEND_URL || 'http://localhost:4202'}/xmlconverter`;
 
   const outputFilesList = outputFiles
     .map(file => `<li>${file.fileName} (${(file.fileSize / 1024).toFixed(2)} KB)</li>`)
