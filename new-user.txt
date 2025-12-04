@@ -1,0 +1,9 @@
+To create a new user for the 1st time 
+
+login into manuscript-backend container
+docker exec -it manuscript-backend /bin/bash
+
+and execute the below command
+npm run create-admin
+
+And provide your username, email and password
