@@ -94,7 +94,7 @@ export const ConversionDashboard = () => {
         }
 
         const token = localStorage.getItem('manuscript_token');
-        const apiUrl = 'http://localhost:5000/api';
+        const apiUrl = 'http://98.84.29.219:5000/api';
         const downloadUrl = `${apiUrl}/files/${file._id}/download/${encodeURIComponent(fileToDownload.fileName)}`;
 
         const response = await axios.get(downloadUrl, {

@@ -17,7 +17,12 @@ const server = http.createServer(app);
 // Initialize Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:3000', 'http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202'],
+    origin: [
+      'http://98.84.29.219:3000',
+      'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:4202'
+    ],
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -39,10 +44,24 @@ io.on('connection', (socket) => {
 connectDB();
 
 // Middleware
-app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202', 'https://epubconverter.netlify.app', 'https://helpful-dusk-b0dacc.netlify.app'], // allow frontend ports
-  credentials: true
-}));
+// ---------- CHANGED BLOCK START ----------
+app.use(
+  cors({
+    origin: [
+      'http://localhost:3000',
+      'http://98.84.29.219:3000',          // ✅ ADDED THIS
+      'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:4202',
+      'https://epubconverter.netlify.app',
+      'https://helpful-dusk-b0dacc.netlify.app'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
+);
+// ---------- CHANGED BLOCK END ----------
 
 // Increase body parser limits
 app.use(express.json({ limit: '200mb' }));
@@ -127,7 +146,7 @@ server.listen(PORT, () => {
 TPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPW
 Q   Server running on port ${PORT}                       Q
 Q   Environment: ${process.env.NODE_ENV || 'development'}                     Q
-Q   MongoDB: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}                           Q
+Q   MongoDB: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}      Q
 Q   WebSocket: Enabled                                   Q
 ZPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP]
   `);
@@ -140,3 +159,4 @@ process.on('unhandledRejection', (err) => {
 });
 
 module.exports = app;
+
