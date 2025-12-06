@@ -1,34 +1,41 @@
 # Backend Dockerfile
 FROM node:20-bullseye
 
-# Install Python + venv + build tools (needed for spacy, opencv, etc.)
+# 1. Install Python + venv + build tools (for lxml, Pillow, etc.)
 RUN apt-get update && \
-    apt-get install -y python3 python3-venv python3-pip build-essential && \
+    apt-get install -y \
+      python3 \
+      python3-venv \
+      python3-pip \
+      build-essential \
+      libxml2-dev \
+      libxslt1-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# 2. Set working directory
 WORKDIR /usr/src/app
 
-# Install Node dependencies
+# 3. Install Node dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the backend code (including RittDocConverter)
+# 4. Copy the rest of the backend code (includes RittDocConverter & PDFtoXMLUsingExcel)
 COPY . .
 
-# ---- Python env for EPUB/PDF converter ----
-# Make sure the folder name matches your project: RittDocConverter
-RUN python3 -m venv RittDocConverter/venv && \
-    . RittDocConverter/venv/bin/activate && \
-    pip install --upgrade pip setuptools wheel && \
-    pip install -r RittDocConverter/requirements.txt && \
-    pip install -r PDFtoXMLUsingExcelr/requirements.txt   
+# 5. Create a single global Python venv for ALL pipelines
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
 
-# -------------------------------------------
+# 6. Install Python dependencies for both pipelines from requirements files
+#    Make sure these files exist in your repo
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir \
+      -r RittDocConverter/requirements.txt \
+      -r PDFtoXMLUsingExcel/requirements.txt
 
-# Env + port
+# 7. Env + port
 ENV PORT=5000
 EXPOSE 5000
 
-# Start backend
+# 8. Start backend
 CMD ["npm", "start"]
